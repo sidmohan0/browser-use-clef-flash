@@ -50,6 +50,6 @@ Observed loop time was 879 ms for this single local-fixture run, excluding brows
 - Ruff, both JavaScript syntax checks, `git diff --check`, and `uv build` passed.
 - MIT license and original copyright were retained.
 
-Live `TYPE_TEXT` has not been verified: the local `TEXT_MODEL_API_KEY` is blank. Set a text-provider key to run the existing typing examples. The example configuration retains OpenRouter Mercury 2.5 with reasoning disabled. No text values were hardcoded to bypass this helper.
+At this initial checkpoint, live `TYPE_TEXT` was not verified. The subsequent [Cloudflare Flights run](cloudflare-flights.md) verifies real text entry using Cloudflare-hosted GPT-OSS 20B and supersedes the earlier OpenRouter setup. No text values were hardcoded to bypass the helper.
 
 Historical videos and performance documents belong to the upstream TypeSafe/Jev implementation. They are not evidence of Clef latency or reliability.

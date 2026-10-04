@@ -4,7 +4,7 @@ An independent adaptation of [browser-use/jev-ultrafast](https://github.com/brow
 
 **A browser agent with a dynamic, indexed action space.**
 
-Give it one goal. Clef-Flash picks an operation and an element. A small LLM writes text only when the operation is `TYPE_TEXT`.
+Give it one goal. Clef-Flash picks an operation and an element. Cloudflare-hosted GPT-OSS 20B writes text only when the operation is `TYPE_TEXT`. `CLEF_MODEL=clef` selects the larger decision model used in the verified Flights run.
 
 **Upstream demonstration (TypeSafe/Jev, not a Clef measurement):** Zürich → London on Google Flights in 7.1 seconds. The video and historical performance documents below are retained as upstream evidence only.
 
@@ -53,7 +53,8 @@ git clone https://github.com/sidmohan0/browser-use-clef-flash.git
 cd browser-use-clef-flash
 uv sync
 cp .env.example .env
-# Add CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN, and TEXT_MODEL_API_KEY.
+# Add CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.
+# For the verified Flights configuration, set CLEF_MODEL=clef.
 uv run jev
 ```
 
@@ -61,15 +62,17 @@ Open **http://127.0.0.1:8766** and click **Start demo → Run automatically**. T
 
 Chrome connects through [Browser Harness](https://github.com/browser-use/browser-harness), installed by `uv sync`. Run `uv run browser-harness --doctor` if it needs connecting. Allow remote debugging in Chrome when prompted.
 
-`TEXT_MODEL_API_KEY` is an OpenRouter key in the example configuration. The example defaults to `inception/mercury-2.5` with reasoning disabled. Keep `TEXT_MODEL`, `TEXT_MODEL_BASE_URL`, and `TEXT_MODEL_REASONING` configurable. Alternative providers must accept the helper’s chat-completion request, including JSON-object output and the chosen reasoning parameters; compatibility with every OpenAI-compatible endpoint has not been tested.
+Text entry defaults to [Cloudflare-hosted GPT-OSS 20B](https://developers.cloudflare.com/workers-ai/models/gpt-oss-20b/) with `reasoning_effort: low` and JSON-object output. It reuses `CLOUDFLARE_API_TOKEN` and derives the account’s `/ai/v1/chat/completions` endpoint. No separate text-provider key is needed.
+
+`TEXT_MODEL`, `TEXT_MODEL_BASE_URL`, `TEXT_MODEL_API_KEY`, and `TEXT_MODEL_REASONING` remain configurable. A custom endpoint requires its own explicit text key; the Cloudflare token is never forwarded to another endpoint. `TEXT_MODEL_REASONING=omit` omits reasoning parameters, `none` sends `reasoning.enabled=false`, and `low`/`medium`/`high` set the requested effort (`reasoning_effort` on Cloudflare). Other providers must support the actual JSON-output and reasoning request; universal compatibility is not claimed.
 
 ### Cloudflare access
 
 In your Cloudflare account, create an API token with **Account → Workers AI → Read**, restricted to that account. Copy its account ID and token to the local ignored `.env`; never commit credentials. See the [REST API setup guide](https://developers.cloudflare.com/workers-ai/get-started/rest-api/). No Worker deployment or model download is required.
 
-Decisions use `POST https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/cloudflare/clef-flash`, bearer authentication, and `model: "clef-flash"`. The decision path unwraps the REST `success`/`result` envelope and passes the model answers through the existing operation/target validator. Missing credentials, provider errors, and malformed or invalid decisions stop before browser execution. Text-helper response parsing, browser freshness guards, and retries remain unchanged.
+Decisions use `POST https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/cloudflare/{CLEF_MODEL}`, bearer authentication, and a matching model selector (`clef-flash` by default, or `clef`). The decision path unwraps the REST `success`/`result` envelope and passes the model answers through the existing operation/target validator. Missing credentials, provider errors, and malformed or invalid decisions stop before browser execution. Text-helper response parsing, browser freshness guards, and retries remain unchanged.
 
-Workers AI usage is subject to your account’s plan and [Cloudflare pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/). `TYPE_TEXT` also uses the configured text provider. A navigation-only task does not need a text key unless the model selects `TYPE_TEXT`.
+Workers AI usage is subject to your account’s plan and [Cloudflare pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/). Both decisions and text entry use this Cloudflare account by default.
 
 ## Use the library
 
@@ -78,7 +81,7 @@ from jev_ultrafast import Agent
 
 with Agent(
     "https://www.google.com/travel/flights?hl=en",
-    "Find one-way flights from Zurich to London on September 20, 2026, "
+    "Find one-way flights from Zurich to London on November 20, 2026, "
     "for one adult in economy. Stop when matching flight options are visible.",
 ) as agent:
     for state in agent.run():
@@ -119,9 +122,26 @@ Every executed target is resolved from an observed node. The executor rechecks p
 | [questions.py](jev_ultrafast/questions.py) | Model instructions |
 | [demo.py](jev_ultrafast/demo.py) | Local inspector |
 
+## Verified Cloudflare Flights run
+
+**Clef (27B) + GPT-OSS 20B**, October 4, 2026: Zürich/ZRH → London, one way, **November 20, 2026**, one adult, economy. The agent reached matching results in **30.448 seconds**, with 25 decisions, 18 executed actions, and two model-generated text entries. Fresh page data independently verified route, date/year, passenger count, cabin, and flight results. This is one recorded success, not a reliability benchmark.
+
+![Verified Cloudflare Flights run at original speed](docs/cloudflare-flights.gif)
+
+[MP4](docs/cloudflare-flights.mp4) · [Verification and failed attempts](docs/cloudflare-flights.md)
+
+Clef-Flash did not complete this task in the recorded attempts. Use `CLEF_MODEL=clef` to reproduce this configuration. The November date replaces the upstream September date, which was already past when tested.
+
+```bash
+CLEF_MODEL=clef uv run --env-file .env python scripts/record_flights.py artifacts/flights/my-run
+uv run python scripts/render_recording.py artifacts/flights/my-run --output artifacts/flights/my-video
+```
+
+Rendering requires FFmpeg and uses the macOS Arial font. It retains original timing and loading waits, adds a one-second final hold, and does not overwrite upstream media.
+
 ## Evidence and limits
 
-This fork’s [Clef verification record](docs/clef-verification.md) covers the live REST boundary, independently verified navigation, offline tests, and remaining text-helper setup. Run `uv run --env-file .env python scripts/smoke_navigation.py` to repeat the navigation check with a connected browser. This calls Cloudflare; it is not part of the offline suite.
+This fork’s [Clef verification record](docs/clef-verification.md) covers the live REST boundary, independently verified navigation, offline tests, and the initial navigation-only result. Run `uv run --env-file .env python scripts/smoke_navigation.py` to repeat the navigation check with a connected browser. This calls Cloudflare; it is not part of the offline suite.
 
 All timings in this section and the linked historical performance documents are **upstream TypeSafe/Jev results**, not Clef-Flash benchmarks. The upstream video is a **7,073 ms** Google Flights run. Timing starts after initial page observation and includes model calls, generated text, browser work, stale decisions, and loading waits. A fresh independent check verifies the one-way setting, Zürich, London, September 20, 2026, and visible flight options. The video plays at 1×, with no opening hold and a 0.5-second final hold.
 

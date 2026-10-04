@@ -1,4 +1,4 @@
-"""Cloudflare Clef-Flash makes choices; an optional small OpenAI-compatible model writes field values."""
+"""Cloudflare Clef models make choices; a configurable text model writes field values."""
 
 import json
 import math
@@ -35,7 +35,10 @@ def clef_decision(body):
         raise ValueError("Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN; no action executed.")
     if len(account) != 32 or any(c not in "0123456789abcdef" for c in account.lower()):
         raise ValueError("Invalid CLOUDFLARE_ACCOUNT_ID; no action executed.")
-    url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/cloudflare/clef-flash"
+    selected_model = body["model"]
+    if selected_model not in {"clef-flash", "clef"}:
+        raise ValueError("CLEF_MODEL must be clef-flash or clef; no action executed.")
+    url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/cloudflare/{selected_model}"
     try:
         envelope = post_json(url, token, body)
     except ValueError:
@@ -136,8 +139,9 @@ def choose(state, goal, history):
             "instructions": {"goal": goal, "operation": operation, "rules": [NEXT_ACTION, TARGET]},
         }
     body = {
-        "model": "clef-flash",
+        "model": os.environ.get("CLEF_MODEL") or "clef-flash",
         "state": {
+            "goal": goal,
             "page": {k: state[k] for k in ("url", "title", "text")},
             "elements": elements,
             "recent_actions": [
@@ -194,15 +198,32 @@ def field_context(goal, action, page, history):
     }
 
 
-def field_text(context):
-    key = os.environ.get("TEXT_MODEL_API_KEY")
-    if not key:
-        raise ValueError("TYPE_TEXT needs TEXT_MODEL_API_KEY; no text is hardcoded or guessed by the executor.")
-    base = os.environ.get("TEXT_MODEL_BASE_URL", "https://api.deepseek.com/v1").rstrip("/")
-    model = os.environ.get("TEXT_MODEL", "deepseek-chat")
-    reasoning = {"thinking": {"type": "disabled"}} if "api.deepseek.com/" in base else {"reasoning": {"effort": "low"}}
-    if os.environ.get("TEXT_MODEL_REASONING") == "none":
+DEFAULT_TEXT_MODEL = "@cf/openai/gpt-oss-20b"
+
+
+def text_configuration():
+    account = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
+    cloudflare_base = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1"
+    base = (os.environ.get("TEXT_MODEL_BASE_URL") or cloudflare_base).rstrip("/")
+    cloudflare = base == cloudflare_base
+    key = os.environ.get("TEXT_MODEL_API_KEY") or (os.environ.get("CLOUDFLARE_API_TOKEN") if cloudflare else None)
+    if not key or (cloudflare and not account):
+        raise ValueError("TYPE_TEXT needs Cloudflare credentials or TEXT_MODEL_API_KEY for an explicit text endpoint.")
+    model = os.environ.get("TEXT_MODEL") or DEFAULT_TEXT_MODEL
+    effort = os.environ.get("TEXT_MODEL_REASONING") or ("low" if cloudflare else "omit")
+    if effort == "omit":
+        reasoning = {}
+    elif effort == "none":
         reasoning = {"reasoning": {"enabled": False}}
+    elif cloudflare:
+        reasoning = {"reasoning_effort": effort}
+    else:
+        reasoning = {"reasoning": {"effort": effort}}
+    return base, key, model, reasoning
+
+
+def field_text(context):
+    base, key, model, reasoning = text_configuration()
     started = time.perf_counter()
     result = post_json(
         base + "/chat/completions",

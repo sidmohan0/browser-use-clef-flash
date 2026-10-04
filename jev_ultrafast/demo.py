@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from .agent import Agent
+from .model import DEFAULT_TEXT_MODEL
 from .questions import MAX_STEPS
 
 ROOT = Path(__file__).parent
@@ -31,7 +32,8 @@ def load_environment():
 
 def response_state():
     state = AGENT.snapshot() if AGENT else {"page": None, "status": "idle", "history": [], "decision": None}
-    return {**state, "text_model": os.environ.get("TEXT_MODEL", "deepseek-chat"), "max_steps": MAX_STEPS}
+    return {**state, "text_model": os.environ.get("TEXT_MODEL") or DEFAULT_TEXT_MODEL,
+            "decision_model": os.environ.get("CLEF_MODEL") or "clef-flash", "max_steps": MAX_STEPS}
 
 
 def close_browser():

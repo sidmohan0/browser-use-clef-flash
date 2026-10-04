@@ -147,6 +147,7 @@ def test_target_head_receives_control_state_and_full_next_step_rules(monkeypatch
 
 def test_quoted_task_text_still_uses_the_llm(monkeypatch):
     monkeypatch.setenv("TEXT_MODEL_API_KEY", "test")
+    monkeypatch.setenv("TEXT_MODEL_BASE_URL", "https://text.example/v1")
     post = Mock(return_value={"choices": [{"message": {"content": '{"text":"Zurich"}'}}]})
     monkeypatch.setattr(model, "post_json", post)
     context = model.field_context('Fly from "Zurich" to London', page()["actions"][0], page(), [])
@@ -281,27 +282,38 @@ def test_fingerprint_tracks_values_and_identity_not_screenshots():
     assert fingerprint(p) != fingerprint(other)
 
 
-@pytest.mark.parametrize("changed", ["Departure", "Where from?", "Where to?", "year"])
+@pytest.mark.parametrize("changed", [
+    "Departure", "Where from?", "Where to?", "year",
+    "1 passenger, change number of passengers.", "Change seating class. Economy",
+])
 def test_flight_verification_rejects_wrong_trip(changed):
     from examples.flights import verify
 
     actual = {
         "url": "https://www.google.com/travel/flights/search?tfs=example",
-        "text": "Track prices from Zürich to London departing 2026-09-20",
+        "text": "Track prices from Zürich to London departing 2026-11-20",
         "actions": [
             {"label": k, "value": v}
             for k, v in [
                 ("Change ticket type. One way", "One way"),
                 ("Where from?", "Zürich"),
                 ("Where to?", "London"),
-                ("Departure", "Sun, Sep 20"),
-                ("Nonstop flight on Sunday, September 20. Select flight", ""),
+                ("Departure", "Fri, Nov 20"),
+                ("1 passenger, change number of passengers.", ""),
+                ("Change seating class. Economy", "Economy"),
+                ("Nonstop flight on Friday, November 20. Select flight", ""),
             ]
         ],
     }
     assert verify(actual)["passed"]
+    origin = next(a for a in actual["actions"] if a["label"] == "Where from?")
+    origin["label"] = "Where from? Zürich ZRH"
+    assert verify(actual)["passed"]
+    origin["label"] = "Where from?"
     if changed == "year":
         actual["text"] = actual["text"].replace("2026", "2027")
+    elif changed == "1 passenger, change number of passengers.":
+        next(a for a in actual["actions"] if a["label"] == changed)["label"] = "2 passengers"
     else:
         next(a for a in actual["actions"] if a["label"] == changed)["value"] = "wrong"
     assert not verify(actual)["passed"]
@@ -312,6 +324,7 @@ def test_flight_verification_rejects_wrong_trip(changed):
 )
 def test_text_helper_rejects_invalid_values(monkeypatch, content):
     monkeypatch.setenv("TEXT_MODEL_API_KEY", "test")
+    monkeypatch.setenv("TEXT_MODEL_BASE_URL", "https://text.example/v1")
     monkeypatch.setattr(model, "post_json", Mock(return_value={"choices": [{"message": {"content": content}}]}))
     with pytest.raises(ValueError, match="nothing typed"):
         model.field_text({"goal": "Find a flight"})

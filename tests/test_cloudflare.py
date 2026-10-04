@@ -44,6 +44,7 @@ def test_rest_request_and_envelope_reach_existing_validator(monkeypatch, credent
         body = json.loads(request.content)
         assert body["model"] == "clef-flash"
         assert body["state"]["page"]["url"] == PAGE["url"]
+        assert body["state"]["goal"] == "Open Choices"
         assert set(body["questions"]) == {"operation", "click_target"}
         return httpx.Response(200, json=envelope())
 
@@ -126,3 +127,55 @@ def test_text_provider_remains_configurable_and_unwrapped(monkeypatch):
 
     monkeypatch.setattr(model, "CLIENT", httpx.Client(transport=httpx.MockTransport(handle)))
     assert model.field_text({"goal": "Search Lisbon"})[0] == "Lisbon"
+
+
+def test_cloudflare_text_defaults_use_account_token(monkeypatch, credentials):
+    for key in ("TEXT_MODEL", "TEXT_MODEL_BASE_URL", "TEXT_MODEL_API_KEY", "TEXT_MODEL_REASONING"):
+        monkeypatch.setenv(key, "")
+
+    def handle(request):
+        expected = "https://api.cloudflare.com/client/v4/accounts/" + "a" * 32 + "/ai/v1/chat/completions"
+        assert str(request.url) == expected
+        assert request.headers["Authorization"] == "Bearer test-token"
+        body = json.loads(request.content)
+        assert body["model"] == "@cf/openai/gpt-oss-20b"
+        assert body["reasoning_effort"] == "low"
+        assert "reasoning" not in body
+        return httpx.Response(200, json={"choices": [{"message": {"content": '{"text":"London"}'}}]})
+
+    monkeypatch.setattr(model, "CLIENT", httpx.Client(transport=httpx.MockTransport(handle)))
+    assert model.field_text({"goal": "Zurich to London", "field": {"label": "Where to?"}})[0] == "London"
+
+
+def test_cloudflare_token_is_never_forwarded_to_custom_text_endpoint(monkeypatch, credentials):
+    monkeypatch.setenv("TEXT_MODEL_BASE_URL", "https://other.example/v1")
+    monkeypatch.delenv("TEXT_MODEL_API_KEY", raising=False)
+    post = Mock()
+    monkeypatch.setattr(model, "post_json", post)
+    with pytest.raises(ValueError, match="TEXT_MODEL_API_KEY"):
+        model.field_text({})
+    post.assert_not_called()
+
+
+@pytest.mark.parametrize("name", ["clef", "clef-flash"])
+def test_clef_model_endpoint_matches_request(monkeypatch, credentials, name):
+    monkeypatch.setenv("CLEF_MODEL", name)
+
+    def post(url, key, body):
+        assert url.endswith("/ai/run/@cf/cloudflare/" + name)
+        assert body["model"] == name
+        result = envelope()
+        result["result"]["model"] = name
+        return result
+
+    monkeypatch.setattr(model, "post_json", post)
+    assert model.choose(PAGE, "Open Choices", [])["model"] == name
+
+
+def test_unknown_clef_model_cannot_call_provider(monkeypatch, credentials):
+    monkeypatch.setenv("CLEF_MODEL", "../../other")
+    post = Mock()
+    monkeypatch.setattr(model, "post_json", post)
+    with pytest.raises(ValueError, match="CLEF_MODEL"):
+        model.choose(PAGE, "Open Choices", [])
+    post.assert_not_called()

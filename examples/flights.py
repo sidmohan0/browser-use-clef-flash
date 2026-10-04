@@ -10,7 +10,7 @@ from jev_ultrafast import Agent
 
 URL = "https://www.google.com/travel/flights?hl=en"
 GOALS = (
-    "Find one-way flights from Zurich to London on September 20, 2026, for one adult in economy. "
+    "Find one-way flights from Zurich to London on November 20, 2026, for one adult in economy. "
     "Stop when matching flight options are visible. Do not select or book a flight."
 )
 
@@ -20,7 +20,7 @@ def verify(page):
     parsed = urlparse(page["url"])
     encoded = parse_qs(parsed.query).get("tfs", [""])[0]
     try:
-        date_in_url = b"2026-09-20" in base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
+        date_in_url = b"2026-11-20" in base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4))
     except ValueError:
         date_in_url = False
     actions = page["actions"]
@@ -29,11 +29,13 @@ def verify(page):
     checks = {
         "search_page": parsed.hostname == "www.google.com" and parsed.path == "/travel/flights/search",
         "one_way": values.get("Change ticket type. One way") == "One way",
-        "origin": values.get("Where from?") == "Zürich",
+        "origin": any(label.startswith("Where from?") and value == "Zürich" for label, value in values.items()),
+        "passengers": "1 passenger, change number of passengers." in values,
+        "cabin": values.get("Change seating class. Economy") == "Economy",
         "destination": values.get("Where to?") == "London",
-        "date": values.get("Departure") == "Sun, Sep 20",
-        "year": date_in_url or "departing 2026-09-20" in page["text"],
-        "results": bool(flights) and all("Sunday, September 20" in f for f in flights),
+        "date": values.get("Departure") == "Fri, Nov 20",
+        "year": date_in_url or "departing 2026-11-20" in page["text"],
+        "results": bool(flights) and all("Friday, November 20" in f for f in flights),
     }
     return {"passed": all(checks.values()), "checks": checks, "visible_flights": flights}
 
@@ -52,7 +54,8 @@ def main():
             print(state["elapsed_ms"], state["status"], last.get("action", ""), flush=True)
     finally:
         state = agent.snapshot()
-        state["verification"] = verify(state["page"])
+        state["final_page"] = agent.browser.observe(screenshot=False)
+        state["verification"] = verify(state["final_page"])
         (folder / "state.json").write_text(json.dumps(state, indent=2))
         (folder / "session.json").write_text(
             json.dumps({"target": agent.browser.target, "session": agent.browser.session})
