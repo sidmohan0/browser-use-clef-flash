@@ -1,16 +1,16 @@
 # Browser Use Clef-Flash
 
-An independent adaptation of [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast) using [Cloudflare-hosted Clef](https://developers.cloudflare.com/workers-ai/models/clef/) for browser decisions. This fork is not maintained or endorsed by Cloudflare or Browser Use. Package and CLI names remain `jev_ultrafast` and `jev`.
+An independent adaptation of [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast) using [Cloudflare-hosted Clef](https://developers.cloudflare.com/workers-ai/models/clef/) for browser decisions. This fork is not maintained or endorsed by Cloudflare or Browser Use. Maintained by [Sid Mohan](https://github.com/sidmohan0). The distribution is `browser-use-clef-flash`; Python imports (`jev_ultrafast`) and the CLI (`jev`) retain their upstream names for compatibility.
 
 **A browser agent with a dynamic, indexed action space.**
 
 Give it one goal. Clef picks an operation and an element. Cloudflare-hosted GPT-OSS 20B writes text only when the operation is `TYPE_TEXT`. The default is **Clef (27B) + GPT-OSS 20B with low reasoning**, the configuration used in the verified Flights run. Set `CLEF_MODEL=clef-flash` to opt into the smaller decision model. The repository name is retained.
 
-**Upstream demonstration (TypeSafe/Jev, not a Clef measurement):** Zürich → London on Google Flights in 7.1 seconds. The video and historical performance documents below are retained as upstream evidence only.
+**Verified Cloudflare demonstration:** Zürich → London in 30.448 seconds using Clef + GPT-OSS 20B. See the [matched provider comparison](#matched-jev--cloudflare-comparison) for repeated measurements and limitations.
 
-<a href="docs/demo.mp4"><img src="docs/demo.gif" alt="A real Google Flights search at 1× speed, with generated city names and dynamic operation/target decisions" width="100%" /></a>
+<a href="docs/cloudflare-flights.mp4"><img src="docs/cloudflare-flights.gif" alt="Verified Cloudflare Clef Google Flights search at original speed" width="100%" /></a>
 
-[Watch the MP4](docs/demo.mp4) · [Measurements](docs/performance.md) · [Read the loop](jev_ultrafast/agent.py)
+[Watch the MP4](docs/cloudflare-flights.mp4) · [Verification](docs/cloudflare-flights.md) · [Read the loop](jev_ultrafast/agent.py)
 
 ## The action space
 
@@ -125,8 +125,6 @@ Every executed target is resolved from an observed node. The executor rechecks p
 
 **Clef (27B) + GPT-OSS 20B**, October 4, 2026: Zürich/ZRH → London, one way, **November 20, 2026**, one adult, economy. The agent reached matching results in **30.448 seconds**, with 25 decisions, 18 executed actions, and two model-generated text entries. Fresh page data independently verified route, date/year, passenger count, cabin, and flight results. This is one recorded success, not a reliability benchmark.
 
-![Verified Cloudflare Flights run at original speed](docs/cloudflare-flights.gif)
-
 [MP4](docs/cloudflare-flights.mp4) · [Verification and failed attempts](docs/cloudflare-flights.md)
 
 Clef-Flash did not complete this task in the recorded attempts, so Clef is now the default. The November date replaces the upstream September date, which was already past when tested.
@@ -187,6 +185,10 @@ The same policy opened the requested Wikipedia article in **2.798 s** and passed
 
 A `DONE` choice still requires independent outcome verification. The DOM reader handles common HTML and ARIA controls, not the full accessible-name specification. Shadow roots, frames, canvas, uploads, pop-up tabs, nested scrolling, and arbitrary keyboard widgets remain outside this MVP. Owned tabs share the existing Chrome profile.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, and benchmark reporting expectations. Report bugs and propose changes in [this fork’s issue tracker](https://github.com/sidmohan0/browser-use-clef-flash/issues).
+
 ## Development
 
 ```bash
@@ -205,4 +207,4 @@ Tests are offline. `uv run python scripts/check_guards.py` checks real controls 
 
 ## License
 
-The application remains MIT; the original Browser Use copyright and [LICENSE](LICENSE) are retained. Clef model files have a separate Apache-2.0 license and are not bundled here.
+The application is licensed under [MIT](LICENSE), with the original Browser Use copyright retained and Sid Mohan credited for fork modifications. See [ATTRIBUTION.md](ATTRIBUTION.md) for upstream provenance, retained demonstration assets, and external model licenses. Model weights are not distributed in this repository; hosted services have their own terms.
