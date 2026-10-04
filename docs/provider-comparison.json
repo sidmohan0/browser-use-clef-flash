@@ -1,0 +1,196 @@
+{
+  "date": "2026-10-04",
+  "live_method": "Six sequential runs in order Jev, Clef, Clef, Jev, Jev, Clef; new isolated headless Chrome profile per run; same application loop, goal, questions, guards and Cloudflare GPT-OSS 20B text helper; one excluded inference warmup per run; timing starts after initial observation and excludes browser startup and final independent verification; no recording. Jev benchmark adapter changes endpoint, authentication, model selector and response envelope only.",
+  "live": [
+    {
+      "provider": "jev",
+      "verified": true,
+      "status": "done",
+      "error": null,
+      "elapsed_ms": 5238,
+      "decisions": 19,
+      "actions": 11,
+      "wait_actions": 1,
+      "decision_ms": 2737,
+      "median_decision_ms": 140,
+      "text_ms": 1013,
+      "models": [
+        "jev-1.13.0"
+      ],
+      "text_models": [
+        "@cf/openai/gpt-oss-20b"
+      ]
+    },
+    {
+      "provider": "clef",
+      "verified": true,
+      "status": "done",
+      "error": null,
+      "elapsed_ms": 26513,
+      "decisions": 25,
+      "actions": 18,
+      "wait_actions": 8,
+      "decision_ms": 22950,
+      "median_decision_ms": 895,
+      "text_ms": 1116,
+      "models": [
+        "clef"
+      ],
+      "text_models": [
+        "@cf/openai/gpt-oss-20b"
+      ]
+    },
+    {
+      "provider": "clef",
+      "verified": true,
+      "status": "done",
+      "error": null,
+      "elapsed_ms": 26847,
+      "decisions": 25,
+      "actions": 18,
+      "wait_actions": 8,
+      "decision_ms": 23464,
+      "median_decision_ms": 916,
+      "text_ms": 1235,
+      "models": [
+        "clef"
+      ],
+      "text_models": [
+        "@cf/openai/gpt-oss-20b"
+      ]
+    },
+    {
+      "provider": "jev",
+      "verified": true,
+      "status": "done",
+      "error": null,
+      "elapsed_ms": 6729,
+      "decisions": 18,
+      "actions": 12,
+      "wait_actions": 2,
+      "decision_ms": 4116,
+      "median_decision_ms": 131.5,
+      "text_ms": 1169,
+      "models": [
+        "jev-1.13.0"
+      ],
+      "text_models": [
+        "@cf/openai/gpt-oss-20b"
+      ]
+    },
+    {
+      "provider": "jev",
+      "verified": true,
+      "status": "done",
+      "error": null,
+      "elapsed_ms": 5046,
+      "decisions": 20,
+      "actions": 13,
+      "wait_actions": 3,
+      "decision_ms": 2653,
+      "median_decision_ms": 133.0,
+      "text_ms": 892,
+      "models": [
+        "jev-1.13.0"
+      ],
+      "text_models": [
+        "@cf/openai/gpt-oss-20b"
+      ]
+    },
+    {
+      "provider": "clef",
+      "verified": true,
+      "status": "done",
+      "error": null,
+      "elapsed_ms": 25178,
+      "decisions": 25,
+      "actions": 18,
+      "wait_actions": 8,
+      "decision_ms": 22361,
+      "median_decision_ms": 869,
+      "text_ms": 696,
+      "models": [
+        "clef"
+      ],
+      "text_models": [
+        "@cf/openai/gpt-oss-20b"
+      ]
+    }
+  ],
+  "replay_method": "Same saved state/questions, model selector only changed; persistent HTTP/2; initial request excluded; sequential rotating provider order; four repetitions per state.",
+  "replay_summary": [
+    {
+      "provider": "jev",
+      "state": "homepage",
+      "n": 4,
+      "median_ms": 118.76,
+      "min_ms": 112.37,
+      "max_ms": 132.69
+    },
+    {
+      "provider": "jev",
+      "state": "calendar",
+      "n": 4,
+      "median_ms": 171.8,
+      "min_ms": 160.54,
+      "max_ms": 291.32
+    },
+    {
+      "provider": "jev",
+      "state": "ready_to_search",
+      "n": 4,
+      "median_ms": 146.12,
+      "min_ms": 116.14,
+      "max_ms": 183.14
+    },
+    {
+      "provider": "clef",
+      "state": "homepage",
+      "n": 4,
+      "median_ms": 1016.39,
+      "min_ms": 889.86,
+      "max_ms": 1463.46
+    },
+    {
+      "provider": "clef",
+      "state": "calendar",
+      "n": 4,
+      "median_ms": 1375.68,
+      "min_ms": 1185.15,
+      "max_ms": 10968.13
+    },
+    {
+      "provider": "clef",
+      "state": "ready_to_search",
+      "n": 4,
+      "median_ms": 866.83,
+      "min_ms": 759.43,
+      "max_ms": 1246.31
+    },
+    {
+      "provider": "clef-flash",
+      "state": "homepage",
+      "n": 4,
+      "median_ms": 371.88,
+      "min_ms": 233.25,
+      "max_ms": 447.42
+    },
+    {
+      "provider": "clef-flash",
+      "state": "calendar",
+      "n": 4,
+      "median_ms": 519.55,
+      "min_ms": 363.94,
+      "max_ms": 843.25
+    },
+    {
+      "provider": "clef-flash",
+      "state": "ready_to_search",
+      "n": 4,
+      "median_ms": 386.02,
+      "min_ms": 309.63,
+      "max_ms": 677.09
+    }
+  ],
+  "limits": "Three live runs per provider on one task. Live website and service load vary. Request latency includes network, routing, queue and inference; no server-side breakdown. Warm replay retains a 10.968-second Clef calendar outlier. Raw traces retained locally in ignored artifacts; application source unchanged."
+}

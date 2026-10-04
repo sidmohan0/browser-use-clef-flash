@@ -154,6 +154,27 @@ Cloudflare's REST response needs its `success`/`result` envelope normalized befo
 
 The successful recording includes original timing and loading waits. No site-specific action plan, prepared field values, flight booking, or browser-guard bypass was used. Failed attempts and the original verifier result were preserved in local ignored artifacts; [the verification record](docs/cloudflare-flights.md) documents them. **One successful run does not establish general reliability or prove a speed advantage over upstream.** The upstream demonstration used a different model and an earlier travel date, so its 7.1-second result is not a controlled comparison.
 
+## Matched Jev / Cloudflare comparison
+
+On October 4, 2026, six additional Flights runs used the same goal (November 20), application loop, questions, guards, and Cloudflare GPT-OSS 20B text helper. Each run used a fresh isolated headless Chrome profile and one excluded decision warmup. Provider order was Jev, Clef, Clef, Jev, Jev, Clef. A benchmark-only adapter selected Jev 1.13.0; production remains Cloudflare-oriented. Timing starts after initial observation and excludes startup, warmup, and final independent verification. No recording was enabled.
+
+| Decision provider | Verified runs | Completion times | Median | Executed WAITs per run |
+| --- | --- | --- | --- | --- |
+| Jev 1.13.0 | 3/3 | 5.238 s, 6.729 s, 5.046 s | **5.238 s** | 1, 2, 3 |
+| Cloudflare Clef | 3/3 | 26.513 s, 26.847 s, 25.178 s | **26.513 s** | 8, 8, 8 |
+
+Clef took 5.06× as long by median in this small matched sample. Separate replay of three identical saved states/questions, four measured repetitions each after an initial excluded request per provider, measured these median request latencies:
+
+| Saved state | Jev 1.13.0 | Clef | Clef-Flash |
+| --- | --- | --- | --- |
+| Homepage | 119 ms | 1,016 ms | 372 ms |
+| Calendar | 172 ms | 1,376 ms | 520 ms |
+| Ready to search | 146 ms | 867 ms | 386 ms |
+
+All replay calls used HTTP/2 and persistent clients. Clef's measured replay calls required no reconnects; the delay was predominantly awaiting response headers, not transmitting the request or reading the body. A 10.968-second Clef calendar outlier is retained in the measurements. On the frozen ready-to-search state, Jev selected CLICK in 4/4 calls and Clef WAIT in 4/4. Flash's faster replay does not override its earlier live task failures.
+
+Jev also uses an [HTTPS JSON REST endpoint](https://docs.typesafe.ai/api). These results do not isolate Cloudflare REST gateway overhead from routing, queueing, or inference. TypeSafe describes a [specialized architecture and parallel sampler, with service based on the West Coast](https://typesafe.ai/blog/introducing-system-one-models-and-jev); the sources reviewed do not specify its GPU hardware or serving implementation. Comparing the same Clef model through REST and a Worker AI binding would be a separate experiment. Three runs per provider on one live task do not establish general reliability. [Measurement data and boundaries](docs/provider-comparison.json).
+
 ## Evidence and limits
 
 This fork’s [Clef verification record](docs/clef-verification.md) covers the live REST boundary, independently verified navigation, offline tests, and the initial navigation-only result. Run `uv run --env-file .env python scripts/smoke_navigation.py` to repeat the navigation check with a connected browser. This calls Cloudflare; it is not part of the offline suite.
