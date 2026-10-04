@@ -1,4 +1,4 @@
-"""TypeSafe makes choices; an optional small OpenAI-compatible model writes field values."""
+"""Cloudflare Clef-Flash makes choices; an optional small OpenAI-compatible model writes field values."""
 
 import json
 import math
@@ -27,6 +27,33 @@ def post_json(url, key, body):
     raise RuntimeError("Model unavailable")
 
 
+def clef_decision(body):
+    """Unwrap Workers AI REST transport without changing the text helper's transport."""
+    account = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
+    token = os.environ.get("CLOUDFLARE_API_TOKEN", "").strip()
+    if not account or not token:
+        raise ValueError("Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN; no action executed.")
+    if len(account) != 32 or any(c not in "0123456789abcdef" for c in account.lower()):
+        raise ValueError("Invalid CLOUDFLARE_ACCOUNT_ID; no action executed.")
+    url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/@cf/cloudflare/clef-flash"
+    try:
+        envelope = post_json(url, token, body)
+    except ValueError:
+        raise ValueError("Invalid Cloudflare JSON response; no action executed.") from None
+    if not isinstance(envelope, dict) or envelope.get("success") is not True or envelope.get("errors"):
+        raise ValueError("Unsuccessful Cloudflare response; no action executed.")
+    result = envelope.get("result")
+    if (
+        not isinstance(result, dict)
+        or not isinstance(result.get("model"), str)
+        or not result["model"].strip()
+        or not isinstance(result.get("answers"), dict)
+        or ("usage" in result and not isinstance(result["usage"], dict))
+    ):
+        raise ValueError("Invalid Clef response; no action executed.")
+    return result
+
+
 def validate_choice(answer, ids):
     try:
         probabilities = answer["probabilities"]
@@ -38,10 +65,10 @@ def validate_choice(answer, ids):
             and abs(sum(probabilities.values()) - 1) < 0.02
             and probabilities[answer["choice"]] >= max(probabilities.values()) - 1e-6
         )
-    except (KeyError, TypeError, ValueError):
+    except (AttributeError, KeyError, TypeError, ValueError):
         valid = False
     if not valid:
-        raise ValueError("Invalid TypeSafe response; no action executed.")
+        raise ValueError("Invalid Clef response; no action executed.")
     return answer
 
 
@@ -92,6 +119,10 @@ def choose(state, goal, history):
         "operation": {"type": "choice", "criteria": operations, "instructions": {"goal": goal, "rules": NEXT_ACTION}}
     }
     for operation, candidates in targets.items():
+        # Clef rejects choice questions with fewer than two options (HTTP 422).
+        # A singleton target is already fixed by the selected operation.
+        if len(candidates) == 1:
+            continue
         questions[operation.lower() + "_target"] = {
             "type": "choice",
             "criteria": {
@@ -105,7 +136,7 @@ def choose(state, goal, history):
             "instructions": {"goal": goal, "operation": operation, "rules": [NEXT_ACTION, TARGET]},
         }
     body = {
-        "model": os.environ.get("TYPESAFE_MODEL", "jev-latest"),
+        "model": "clef-flash",
         "state": {
             "page": {k: state[k] for k in ("url", "title", "text")},
             "elements": elements,
@@ -116,7 +147,7 @@ def choose(state, goal, history):
         "questions": questions,
     }
     started = time.perf_counter()
-    result = post_json("https://api.typesafe.ai/v1/systemone", os.environ["TYPESAFE_API_KEY"], body)
+    result = clef_decision(body)
     operation_answer = validate_choice(result["answers"].get("operation", {}), operations)
     operation = operation_answer["choice"]
     target = None
@@ -124,7 +155,13 @@ def choose(state, goal, history):
     probabilities = {}
     if operation in targets:
         # Unused target heads cannot cause an action. Validate the head selected by the operation.
-        target_answer = validate_choice(result["answers"].get(operation.lower() + "_target", {}), targets[operation])
+        candidates = targets[operation]
+        if len(candidates) == 1:
+            only = next(iter(candidates))
+            answer = {"choice": only, "probabilities": {only: 1.0}, "confidence": 1.0}
+        else:
+            answer = result["answers"].get(operation.lower() + "_target", {})
+        target_answer = validate_choice(answer, candidates)
         target = target_answer["choice"]
         choice = targets[operation][target]["id"]
         probabilities = {a["id"]: target_answer["probabilities"][index] for index, a in targets[operation].items()}

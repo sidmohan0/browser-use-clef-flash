@@ -60,7 +60,7 @@ def test_invalid_choice_is_rejected(mutation):
         a["choice"] = "b"
     else:
         a["confidence"] = 5
-    with pytest.raises(ValueError, match="Invalid TypeSafe"):
+    with pytest.raises(ValueError, match="Invalid Clef"):
         model.validate_choice(a, {"a", "b"})
 
 
@@ -76,6 +76,8 @@ def test_one_index_per_node_with_operation_specific_targets():
 
 def test_all_heads_are_one_request_and_only_matching_head_executes(monkeypatch):
     calls = []
+    p = page()
+    p["actions"].append({"id": "e4", "kind": "fill", "label": "Other field", "node": 30})
 
     def post(_url, _key, body):
         calls.append(body)
@@ -83,14 +85,15 @@ def test_all_heads_are_one_request_and_only_matching_head_executes(monkeypatch):
             "model": "test",
             "answers": {
                 "operation": choice(body["questions"]["operation"]["criteria"], "TYPE_TEXT"),
-                "type_text_target": choice(["1"], "1"),
+                "type_text_target": choice(["1", "3"], "1"),
                 "click_target": {"choice": "invented"},
             },
         }
 
-    monkeypatch.setenv("TYPESAFE_API_KEY", "test")
-    monkeypatch.setattr(model, "post_json", post)
-    d = model.choose(page(), "Find a book", [])
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "a" * 32)
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test")
+    monkeypatch.setattr(model, "post_json", lambda *args: {"success": True, "result": post(*args)})
+    d = model.choose(p, "Find a book", [])
     assert len(calls) == 1
     assert d["operation"] == "TYPE_TEXT" and d["target"] == "1" and d["choice"] == "e1"
     assert set(calls[0]["questions"]) == {"operation", "click_target", "type_text_target"}
@@ -107,9 +110,10 @@ def test_click_cannot_consume_a_text_target(monkeypatch):
             },
         }
 
-    monkeypatch.setenv("TYPESAFE_API_KEY", "test")
-    monkeypatch.setattr(model, "post_json", post)
-    with pytest.raises(ValueError, match="Invalid TypeSafe"):
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "a" * 32)
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test")
+    monkeypatch.setattr(model, "post_json", lambda *args: {"success": True, "result": post(*args)})
+    with pytest.raises(ValueError, match="Invalid Clef"):
         model.choose(page(), "Find a book", [])
 
 
@@ -134,8 +138,9 @@ def test_target_head_receives_control_state_and_full_next_step_rules(monkeypatch
             },
         }
 
-    monkeypatch.setenv("TYPESAFE_API_KEY", "test")
-    monkeypatch.setattr(model, "post_json", post)
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "a" * 32)
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test")
+    monkeypatch.setattr(model, "post_json", lambda *args: {"success": True, "result": post(*args)})
     d = model.choose(p, "Search with free cancellation", [])
     assert d["choice"] == "e3"
 
