@@ -22,7 +22,7 @@ def choice(ids, selected):
 
 def envelope():
     return {"success": True, "errors": [], "messages": [], "result": {
-        "model": "clef-flash", "usage": {"input_tokens": 843, "output_tokens": 0},
+        "model": "clef", "usage": {"input_tokens": 843, "output_tokens": 0},
         "answers": {"operation": choice(["CLICK", "DONE", "BLOCKED"], "CLICK"),
                     "click_target": choice(["1", "2"], "1")},
     }}
@@ -30,6 +30,7 @@ def envelope():
 
 @pytest.fixture
 def credentials(monkeypatch):
+    monkeypatch.delenv("CLEF_MODEL", raising=False)
     monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "a" * 32)
     monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "test-token")
 
@@ -37,12 +38,12 @@ def credentials(monkeypatch):
 def test_rest_request_and_envelope_reach_existing_validator(monkeypatch, credentials):
     def handle(request):
         assert str(request.url) == (
-            "https://api.cloudflare.com/client/v4/accounts/" + "a" * 32 + "/ai/run/@cf/cloudflare/clef-flash"
+            "https://api.cloudflare.com/client/v4/accounts/" + "a" * 32 + "/ai/run/@cf/cloudflare/clef"
         )
         assert request.headers["Authorization"] == "Bearer test-token"
         assert request.headers["Content-Type"] == "application/json"
         body = json.loads(request.content)
-        assert body["model"] == "clef-flash"
+        assert body["model"] == "clef"
         assert body["state"]["page"]["url"] == PAGE["url"]
         assert body["state"]["goal"] == "Open Choices"
         assert set(body["questions"]) == {"operation", "click_target"}

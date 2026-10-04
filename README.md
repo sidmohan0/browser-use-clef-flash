@@ -1,10 +1,10 @@
 # Browser Use Clef-Flash
 
-An independent adaptation of [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast) using [Cloudflare-hosted Clef-Flash](https://developers.cloudflare.com/workers-ai/models/clef-flash/) for browser decisions. This fork is not maintained or endorsed by Cloudflare or Browser Use. Package and CLI names remain `jev_ultrafast` and `jev`.
+An independent adaptation of [browser-use/jev-ultrafast](https://github.com/browser-use/jev-ultrafast) using [Cloudflare-hosted Clef](https://developers.cloudflare.com/workers-ai/models/clef/) for browser decisions. This fork is not maintained or endorsed by Cloudflare or Browser Use. Package and CLI names remain `jev_ultrafast` and `jev`.
 
 **A browser agent with a dynamic, indexed action space.**
 
-Give it one goal. Clef-Flash picks an operation and an element. Cloudflare-hosted GPT-OSS 20B writes text only when the operation is `TYPE_TEXT`. `CLEF_MODEL=clef` selects the larger decision model used in the verified Flights run.
+Give it one goal. Clef picks an operation and an element. Cloudflare-hosted GPT-OSS 20B writes text only when the operation is `TYPE_TEXT`. The default is **Clef (27B) + GPT-OSS 20B with low reasoning**, the configuration used in the verified Flights run. Set `CLEF_MODEL=clef-flash` to opt into the smaller decision model. The repository name is retained.
 
 **Upstream demonstration (TypeSafe/Jev, not a Clef measurement):** Zürich → London on Google Flights in 7.1 seconds. The video and historical performance documents below are retained as upstream evidence only.
 
@@ -27,7 +27,7 @@ Every observation produces a new element table:
 The operations are `CLICK`, `TYPE_TEXT`, `SELECT`, `SCROLL_UP`, `SCROLL_DOWN`, `WAIT`, `DONE`, and `BLOCKED`. Only supported operations and targets are offered.
 
 ```text
-                      one Clef-Flash request
+                      one Clef request
                      ┌───────────────────────────┐
 page → element table → operation                 │
                      │ click_target              │
@@ -54,7 +54,6 @@ cd browser-use-clef-flash
 uv sync
 cp .env.example .env
 # Add CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.
-# For the verified Flights configuration, set CLEF_MODEL=clef.
 uv run jev
 ```
 
@@ -70,7 +69,7 @@ Text entry defaults to [Cloudflare-hosted GPT-OSS 20B](https://developers.cloudf
 
 In your Cloudflare account, create an API token with **Account → Workers AI → Read**, restricted to that account. Copy its account ID and token to the local ignored `.env`; never commit credentials. See the [REST API setup guide](https://developers.cloudflare.com/workers-ai/get-started/rest-api/). No Worker deployment or model download is required.
 
-Decisions use `POST https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/cloudflare/{CLEF_MODEL}`, bearer authentication, and a matching model selector (`clef-flash` by default, or `clef`). The decision path unwraps the REST `success`/`result` envelope and passes the model answers through the existing operation/target validator. Missing credentials, provider errors, and malformed or invalid decisions stop before browser execution. Text-helper response parsing, browser freshness guards, and retries remain unchanged.
+Decisions use `POST https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/run/@cf/cloudflare/{CLEF_MODEL}`, bearer authentication, and a matching model selector (`clef` by default, or `clef-flash`). The decision path unwraps the REST `success`/`result` envelope and passes the model answers through the existing operation/target validator. Missing credentials, provider errors, and malformed or invalid decisions stop before browser execution. Text-helper response parsing, browser freshness guards, and retries remain unchanged.
 
 Workers AI usage is subject to your account’s plan and [Cloudflare pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/). Both decisions and text entry use this Cloudflare account by default.
 
@@ -101,7 +100,7 @@ uv run --env-file .env python examples/run.py \
 ## Why it moves
 
 - **One request per decision cycle.** Operation and target heads share the same observed state.
-- **No screenshots in the default agent loop.** Clef-Flash consumes structured state. The inspector opts into screenshots; the video uses a separate continuous screencast.
+- **No screenshots in the default agent loop.** Clef consumes structured state. The inspector opts into screenshots; the video uses a separate continuous screencast.
 - **One browser call per snapshot.** Read visible controls, their names, values, and text atomically. Keep references to the actual DOM nodes.
 - **Validate the selected target.** Clicks check the document, form values, target, and nearby context. Animation alone does not force another prediction. Resolve current geometry and reject covered controls before input.
 - **Wait for useful state.** After typing into a combobox, wait for visible suggestions, capped at 200 ms. Other interactions get at most two animation frames or 50 ms. These reads happen after execution is logged.
@@ -130,14 +129,30 @@ Every executed target is resolved from an observed node. The executor rechecks p
 
 [MP4](docs/cloudflare-flights.mp4) · [Verification and failed attempts](docs/cloudflare-flights.md)
 
-Clef-Flash did not complete this task in the recorded attempts. Use `CLEF_MODEL=clef` to reproduce this configuration. The November date replaces the upstream September date, which was already past when tested.
+Clef-Flash did not complete this task in the recorded attempts, so Clef is now the default. The November date replaces the upstream September date, which was already past when tested.
 
 ```bash
-CLEF_MODEL=clef uv run --env-file .env python scripts/record_flights.py artifacts/flights/my-run
+uv run --env-file .env python scripts/record_flights.py artifacts/flights/my-run
 uv run python scripts/render_recording.py artifacts/flights/my-run --output artifacts/flights/my-video
 ```
 
 Rendering requires FFmpeg and uses the macOS Arial font. It retains original timing and loading waits, adds a one-second final hold, and does not overwrite upstream media.
+
+## Findings from the integration
+
+These observations were recorded on October 4, 2026, using an isolated headless Chrome profile on macOS and Browser Harness 0.1.13.
+
+| Configuration or change | Observed result | Decision |
+| --- | --- | --- |
+| Llama 3.1 8B FP8 text helper | Returned the origin for a destination probe after passing the origin probe. | Use GPT-OSS 20B with low reasoning; it generated both city names correctly in the successful live run. |
+| Clef-Flash decision model | Two runs became stuck in the multi-airport picker. A third filled both cities but repeatedly selected WAIT at London's suggestions until the existing 60-action limit. | Keep it available as an opt-in; use Clef by default. |
+| Goal included directly in shared state | Corrected the saved origin-picker choice. Converting instructions or option descriptions to plain text did not fix that saved decision. | Retain the goal in state and cover its presence with an offline request test. This did not make Clef-Flash complete the task. |
+| Clef (27B) + GPT-OSS 20B | Completed the recorded Flights search in 30.448 seconds, with 25 decisions, 18 actions, and two text generations. | Adopt this configuration as the default. |
+| Independent outcome verification | Google's origin label included “Zürich ZRH”; the old exact-label check rejected the correct result. | Accept the airport suffix while checking the origin value; also verify passenger count and economy cabin. All nine final checks passed. |
+
+Cloudflare's REST response needs its `success`/`result` envelope normalized before choice validation. A live HTTP 422 also established that a choice question needs at least two options: a sole observed target is resolved only after the operation is selected, then still validated. Both inference paths reuse an account-scoped **Workers AI: Read** token; no Worker deployment or second provider key is required.
+
+The successful recording includes original timing and loading waits. No site-specific action plan, prepared field values, flight booking, or browser-guard bypass was used. Failed attempts and the original verifier result were preserved in local ignored artifacts; [the verification record](docs/cloudflare-flights.md) documents them. **One successful run does not establish general reliability or prove a speed advantage over upstream.** The upstream demonstration used a different model and an earlier travel date, so its 7.1-second result is not a controlled comparison.
 
 ## Evidence and limits
 

@@ -139,7 +139,7 @@ def choose(state, goal, history):
             "instructions": {"goal": goal, "operation": operation, "rules": [NEXT_ACTION, TARGET]},
         }
     body = {
-        "model": os.environ.get("CLEF_MODEL") or "clef-flash",
+        "model": os.environ.get("CLEF_MODEL") or "clef",
         "state": {
             "goal": goal,
             "page": {k: state[k] for k in ("url", "title", "text")},

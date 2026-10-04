@@ -1,6 +1,6 @@
 # Cloudflare Flights recording — October 4, 2026
 
-The verified configuration uses `CLEF_MODEL=clef` (Cloudflare’s 27B decision model) and `TEXT_MODEL=@cf/openai/gpt-oss-20b` with low reasoning. Both inference paths use the existing account-scoped Workers AI: Read token. The repository retains Clef-Flash as its default; the local `.env` selects Clef for this task.
+The verified configuration uses `CLEF_MODEL=clef` (Cloudflare’s 27B decision model) and `TEXT_MODEL=@cf/openai/gpt-oss-20b` with low reasoning. Both inference paths use the existing account-scoped Workers AI: Read token. Clef is now the repository default based on this run; Clef-Flash remains available via `CLEF_MODEL=clef-flash`.
 
 ## Result
 
